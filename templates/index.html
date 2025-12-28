@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Engineering Consistency Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    >
+
+    <style>
+        .heatmap-box {
+            width: 14px;
+            height: 14px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .heatmap-box.green { background-color: #22c55e; }
+        .heatmap-box.yellow { background-color: #eab308; }
+        .heatmap-box.red { background-color: #ef4444; }
+    </style>
+</head>
+
+<body class="bg-light p-4">
+<div class="container" style="max-width:1000px;">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <h2 class="fw-bold mb-0">Engineering Consistency</h2>
+            <p class="text-muted mb-0">Today: {{ today }}</p>
+        </div>
+        <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+    </div>
+
+    <!-- STREAK -->
+    <div class="row mb-3 mt-3">
+        <div class="col">
+            <div class="card p-3 text-center">
+                <h6>🔥 Current Streak</h6>
+                <h3>{{ current_streak }}</h3>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card p-3 text-center">
+                <h6>🏆 Best Streak</h6>
+                <h3>{{ best_streak }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- HEATMAP -->
+    <div class="card p-3 mb-3">
+        <h5>🔥 Consistency Heatmap</h5>
+
+        <div class="d-flex flex-wrap">
+            {% for d, info in heatmap.items() %}
+                <div
+                    class="heatmap-box {{ info.color }}"
+                    title="{{ d }} | Habits completed: {{ info.count }}"
+                    onclick="showNote('{{ d }}', `{{ info.note | e }}`)">
+                </div>
+            {% endfor %}
+        </div>
+
+        <small class="text-muted">
+            Green = strong day, Yellow = partial, Red = weak
+        </small>
+    </div>
+
+    <!-- DAILY NOTE -->
+    <div class="card p-3 mb-3">
+        <h5>📝 What I Learned Today</h5>
+        <form method="POST" action="/save_note">
+            <textarea
+                name="content"
+                rows="3"
+                class="form-control mb-2"
+                placeholder="Write what you learned today...">{{ daily_note }}</textarea>
+            <button class="btn btn-success">Save Note</button>
+        </form>
+    </div>
+
+    <!-- TOP 3 FOCUS -->
+    <div class="card p-3 mb-3">
+        <h5>🎯 Today’s Top 3 Focus</h5>
+        <form method="POST" action="/save_focus">
+            <input name="f1" class="form-control mb-1" placeholder="Focus 1" value="{{ focus[0] }}">
+            <input name="f2" class="form-control mb-1" placeholder="Focus 2" value="{{ focus[1] }}">
+            <input name="f3" class="form-control mb-2" placeholder="Focus 3" value="{{ focus[2] }}">
+            <button class="btn btn-primary">Save Focus</button>
+        </form>
+    </div>
+
+    <!-- ENERGY -->
+    <div class="card p-3 mb-3">
+        <h5>⚡ Energy Level</h5>
+        <div class="d-flex gap-2">
+            <a href="/set_energy/Low" class="btn btn-outline-danger">Low</a>
+            <a href="/set_energy/Normal" class="btn btn-outline-warning">Normal</a>
+            <a href="/set_energy/High" class="btn btn-outline-success">High</a>
+        </div>
+        {% if energy %}
+            <p class="mt-2">Today: <strong>{{ energy }}</strong></p>
+        {% endif %}
+    </div>
+
+    <!-- HABITS -->
+    <div class="card p-3 mb-3">
+        <h5>Habits</h5>
+
+        <form method="POST" action="/add_habit" class="d-flex gap-2 mb-2">
+            <input name="name" class="form-control" placeholder="Habit name" required>
+            <select name="difficulty" class="form-select">
+                <option>Easy</option>
+                <option>Medium</option>
+                <option>Hard</option>
+            </select>
+            <button class="btn btn-dark">Add</button>
+        </form>
+
+        <ul class="list-group">
+        {% for h in habits %}
+            <li class="list-group-item">
+                <div class="row align-items-center">
+
+                    <!-- Habit name -->
+                    <div class="col-6 fw-semibold">
+                        {{ h.name }}
+                    </div>
+
+                    <!-- Difficulty badge -->
+                    <div class="col-3 text-center">
+                        <span class="badge
+                            {% if h.difficulty == 'Easy' %} bg-success
+                            {% elif h.difficulty == 'Medium' %} bg-warning text-dark
+                            {% else %} bg-danger
+                            {% endif %}">
+                            {{ h.difficulty }}
+                        </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="col-3 text-end">
+                        <a
+                          href="/toggle/{{ h.id }}"
+                          class="btn btn-sm {{ 'btn-success' if h.done else 'btn-outline-secondary' }}">
+                          {{ 'Done' if h.done else 'Mark' }}
+                        </a>
+
+                        <form
+                          method="POST"
+                          action="/delete_habit/{{ h.id }}"
+                          style="display:inline;">
+                          <button
+                            type="submit"
+                            class="btn btn-sm btn-outline-danger"
+                            onclick="return confirm('Delete this habit?');">
+                            🗑
+                          </button>
+                        </form>
+                    </div>
+
+                </div>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <!-- WEEKLY REFLECTION -->
+    {% if show_reflection %}
+    <div class="card p-3 mb-3">
+        <h5>🧠 Weekly Reflection</h5>
+        <form method="POST" action="/save_weekly_reflection">
+            <textarea
+                name="content"
+                rows="3"
+                class="form-control mb-2"
+                placeholder="What worked? What failed? What to improve?">{{ weekly_reflection }}</textarea>
+            <button class="btn btn-success">Save Reflection</button>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- JS: OPEN NOTE FROM HEATMAP -->
+<script>
+function showNote(date, note) {
+    if (note && note.trim() !== "") {
+        alert("📅 " + date + "\n\n" + note);
+    } else {
+        alert("📅 " + date + "\n\nNo note for this day.");
+    }
+}
+</script>
+
+</body>
+</html>
