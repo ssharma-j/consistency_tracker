@@ -80,28 +80,6 @@ def init_db():
 
 
 # ---------------- AUTH ----------------
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = generate_password_hash(request.form["password"])
-
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        try:
-            c.execute(
-                "INSERT INTO users (username, password) VALUES (?,?)",
-                (username, password)
-            )
-            conn.commit()
-        except:
-            conn.close()
-            return "User already exists"
-        conn.close()
-        return redirect(url_for("login"))
-
-    return render_template("register.html")
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -411,4 +389,5 @@ def save_weekly_reflection():
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 
