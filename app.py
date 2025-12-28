@@ -1,46 +1,41 @@
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 
 app = Flask(__name__)
-app.secret_key = "tracker-secret-key"
+app.secret_key = "simple-tracker-key"
 
-DB_NAME = "tracker.db"
+DB = "tracker.db"
 
 
-# -------------------- DATABASE INIT --------------------
+# ---------- DATABASE ----------
 
 def get_db():
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(DB)
 
 
 def init_db():
     conn = get_db()
     c = conn.cursor()
 
-    # Habits
     c.execute("""
         CREATE TABLE IF NOT EXISTS habits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            difficulty TEXT NOT NULL
+            name TEXT NOT NULL
         )
     """)
 
-    # Habit completion log
     c.execute("""
         CREATE TABLE IF NOT EXISTS habit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             habit_id INTEGER,
-            day DATE,
-            FOREIGN KEY(habit_id) REFERENCES habits(id)
+            day TEXT
         )
     """)
 
-    # Daily notes
     c.execute("""
         CREATE TABLE IF NOT EXISTS notes (
-            day DATE PRIMARY KEY,
+            day TEXT PRIMARY KEY,
             content TEXT
         )
     """)
@@ -51,7 +46,29 @@ def init_db():
 
 init_db()
 
-# -------------------- ROUTES --------------------
+# ---------- HELPERS ----------
+
+def get_streak():
+    conn = get_db()
+    c = conn.cursor()
+
+    streak = 0
+    today = date.today()
+
+    while True:
+        d = today - timedelta(days=streak)
+        c.execute("SELECT COUNT(*) FROM habit_logs WHERE day=?", (d.isoformat(),))
+        count = c.fetchone()[0]
+        if count >= 5:
+            streak += 1
+        else:
+            break
+
+    conn.close()
+    return streak
+
+
+# ---------- ROUTES ----------
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -62,13 +79,9 @@ def home():
 
     # Add habit
     if request.method == "POST":
-        name = request.form.get("name")
-        difficulty = request.form.get("difficulty")
+        name = request.form.get("habit")
         if name:
-            c.execute(
-                "INSERT INTO habits (name, difficulty) VALUES (?, ?)",
-                (name, difficulty)
-            )
+            c.execute("INSERT INTO habits (name) VALUES (?)", (name,))
             conn.commit()
         return redirect(url_for("home"))
 
@@ -76,15 +89,12 @@ def home():
     c.execute("SELECT * FROM habits")
     habits = c.fetchall()
 
-    # Completed habits today
-    c.execute(
-        "SELECT habit_id FROM habit_logs WHERE day = ?",
-        (today,)
-    )
+    # Completed today
+    c.execute("SELECT habit_id FROM habit_logs WHERE day=?", (today,))
     completed_ids = {row[0] for row in c.fetchall()}
 
-    # Today's note
-    c.execute("SELECT content FROM notes WHERE day = ?", (today,))
+    # Note
+    c.execute("SELECT content FROM notes WHERE day=?", (today,))
     note_row = c.fetchone()
     today_note = note_row[0] if note_row else ""
 
@@ -95,12 +105,13 @@ def home():
         habits=habits,
         completed_ids=completed_ids,
         today=today,
-        today_note=today_note
+        today_note=today_note,
+        streak=get_streak()
     )
 
 
 @app.route("/mark/<int:habit_id>")
-def mark_habit(habit_id):
+def mark(habit_id):
     conn = get_db()
     c = conn.cursor()
     today = date.today().isoformat()
@@ -116,12 +127,12 @@ def mark_habit(habit_id):
 
 
 @app.route("/delete/<int:habit_id>")
-def delete_habit(habit_id):
+def delete(habit_id):
     conn = get_db()
     c = conn.cursor()
 
-    c.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
-    c.execute("DELETE FROM habit_logs WHERE habit_id = ?", (habit_id,))
+    c.execute("DELETE FROM habits WHERE id=?", (habit_id,))
+    c.execute("DELETE FROM habit_logs WHERE habit_id=?", (habit_id,))
 
     conn.commit()
     conn.close()
@@ -146,8 +157,6 @@ def save_note():
     conn.close()
     return redirect(url_for("home"))
 
-
-# -------------------- RUN --------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
