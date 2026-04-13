@@ -1,0 +1,8 @@
+# Build artefacts
+habit_tracker
+*.o
+
+# Generated data / exports (per-user runtime files)
+habit_data.txt
+habits_export.csv
+habits_export.pdf
